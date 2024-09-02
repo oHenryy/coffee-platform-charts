@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
 
 export default function Home() {
@@ -10,8 +10,24 @@ export default function Home() {
   const [lastFmData, setLastFmData] = useState<any>(null);
   const [activePlatformTab, setActivePlatformTab] = useState<'spotify' | 'lastfm'>('spotify');
   const [activeSubTab, setActiveSubTab] = useState<'info' | 'topTracks' | 'topAlbums' | 'bio'>('info');
+  const [recentSearches, setRecentSearches] = useState<any[]>([]);
+  const [topTracks, setTopTracks] = useState<any[]>([]);
+  const [timeRange, setTimeRange] = useState<'short_term' | 'medium_term' | 'long_term'>('medium_term');
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const storedSearches = localStorage.getItem('recentSearches');
+    if (storedSearches) {
+      setRecentSearches(JSON.parse(storedSearches));
+    }
+
+    const token = localStorage.getItem('spotifyAccessToken');
+    setIsLoggedIn(!!token);
+  }, []);
 
   const fetchArtistData = async () => {
+    setLoading(true);
     try {
       const response = await axios.get(`/api/getArtistData?artist=${artist}`);
       const artistInfo = response.data;
@@ -23,12 +39,25 @@ export default function Home() {
 
         const lastFmResponse = await axios.get(`/api/getLastFmData?artist=${artist}&spotifyArtistId=${artistInfo.id}`);
         setLastFmData(lastFmResponse.data);
+
+        updateRecentSearches(artistInfo.name, artistInfo.imageUrl);
       } else {
         console.error('ID do artista está faltando');
       }
     } catch (error) {
       console.error('Erro ao buscar dados do artista', error);
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const updateRecentSearches = (artistName: string, artistImage: string) => {
+    let searches = [{ name: artistName, imageUrl: artistImage }, ...recentSearches];
+    searches = searches.filter((item, index, self) =>
+      index === self.findIndex((t) => t.name === item.name)
+    ).slice(0, 3);
+    setRecentSearches(searches);
+    localStorage.setItem('recentSearches', JSON.stringify(searches));
   };
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -37,10 +66,43 @@ export default function Home() {
     }
   };
 
+  const handleRecentSearchClick = (artistName: string) => {
+    setArtist(artistName);
+    fetchArtistData();
+  };
+
+  const handleLogin = () => {
+    const scopes = 'user-top-read';
+    const redirectUri = 'http://localhost:3000/api/spotify/callback';
+    const clientId = process.env.SPOTIFY_CLIENT_ID;
+    const spotifyAuthorizeUrl = `https://accounts.spotify.com/authorize?response_type=code&client_id=${clientId}&scope=${scopes}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+
+    window.location.href = spotifyAuthorizeUrl;
+  };
+
+  const fetchTopTracks = async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('spotifyAccessToken');
+      const response = await axios.get(`/api/spotify/topTracks?timeRange=${timeRange}&token=${token}`);
+      setTopTracks(response.data.items);
+    } catch (error) {
+      console.error('Error fetching top tracks:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      fetchTopTracks();
+    }
+  }, [timeRange, isLoggedIn]);
+
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">Estatísticas de Streaming do Artista</h1>
-      
+
       <div className="flex mb-4">
         <input 
           type="text" 
@@ -57,6 +119,30 @@ export default function Home() {
           Buscar
         </button>
       </div>
+
+      {recentSearches.length > 0 && (
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold inline-block mr-2">Buscas recentes:</h2>
+          <div className="inline-flex space-x-2">
+            {recentSearches.map((search, index) => (
+              <button 
+                key={index} 
+                onClick={() => handleRecentSearchClick(search.name)}
+                className="flex items-center bg-gray-800 text-white rounded-full px-3 py-1 transition hover:bg-gray-700"
+              >
+                {search.imageUrl && (
+                  <img 
+                    src={search.imageUrl}
+                    alt={`Foto de ${search.name}`} 
+                    className="w-6 h-6 rounded-full mr-2"
+                  />
+                )}
+                <span>{search.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {artistData && (
         <div className="mt-8">
@@ -251,6 +337,40 @@ export default function Home() {
           )}
         </div>
       )}
+
+      <div className="mt-8">
+        <h2 className="text-2xl font-bold mb-4">Relatório de Músicas Mais Ouvidas</h2>
+        {!isLoggedIn ? (
+          <button 
+            onClick={handleLogin} 
+            className="bg-green-500 text-white p-2 rounded"
+          >
+            Conectar ao Spotify
+          </button>
+        ) : (
+          <div>
+            <div className="flex mb-4">
+              <button onClick={() => setTimeRange('short_term')} className="btn">Última Semana</button>
+              <button onClick={() => setTimeRange('medium_term')} className="btn">Último Mês</button>
+              <button onClick={() => setTimeRange('long_term')} className="btn">Último Ano</button>
+              <button onClick={() => setTimeRange('long_term')} className="btn">Todos os Tempos</button>
+            </div>
+
+            <div>
+              {loading ? (
+                <p>Carregando dados do usuário...</p>
+              ) : (
+                topTracks.map((track, index) => (
+                  <div key={index} className="track-item">
+                    <img src={track.album.images[0].url} alt={track.name} />
+                    <div>{track.name}</div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
