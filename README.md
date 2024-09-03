@@ -5,11 +5,20 @@ Este é um projeto Next.js que permite aos usuários buscar informações sobre 
 
 ## Funcionalidades
 
+### Estatísticas de Artista:
 - **Busca de Artistas**: Busque informações sobre qualquer artista.
 - **Dados de Streaming**: Veja informações sobre o artista, como número de seguidores, popularidade, e ouvintes mensais.
 - **Top Tracks**: Visualize as 10 músicas mais populares do artista.
 - **Top Álbuns**: Visualize os 10 álbuns mais populares do artista (apenas para Last.fm).
 - **Biografia do Artista**: Veja a biografia do artista (apenas para Last.fm).
+
+### Estatísticas Pessoais:
+- **Login no Spotify**: Conecte-se a sua conta do Spotify.
+- **Dados de Streaming**: Verifique quais as suas músicas mais ouvidas, nos seguintes intervalos de tempo:
+  - Última semana;
+  - Último mês;
+  - último ano;
+  - Todos os tempos.
 
 ## Tecnologias Utilizadas
 
